@@ -18,13 +18,12 @@ module Symfony
           :actions => [],
           :vars => {},
           :pre_vars => {},
-          :verbose => 3
+          :verbose => 1
       }
     end
 
     def execute!
       @config.load 'deploy'
-      @config.logger.level = 3
 
       set_up_config(@config)
 

@@ -10,17 +10,19 @@ Gem::Specification.new do |spec|
     hubops
   DESC
 
+  spec.bindir = "bin"
+  spec.executables = ["hub-deploy"]
+
   spec.files = Dir.glob("{lib}/**/*")
   spec.require_path = 'lib'
   spec.has_rdoc = false
 
 
   spec.add_dependency 'capistrano', ">= 2.11.0"
-  spec.add_dependency 'capifony', ">= 2.1.13"
+  spec.add_dependency 'hub-capifony', ">= 2.1.16"
+  spec.add_dependency 'trollop', ">= 2.0"
 
   spec.authors = [ "Amy Badore" ]
   spec.email = [ "amy.badore@cbsinteractive.com" ]
-#  spec.homepage = "http://capifony.org"
-#  spec.rubyforge_project = "capifony"
 
 end

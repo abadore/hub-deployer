@@ -1,0 +1,78 @@
+#!/usr/bin/env ruby
+require 'trollop'
+require 'hub-deployer'
+
+opts = Trollop::options do
+  opt :app_servers, "Servers to deploy to", :type => :string
+  opt :actions, "Actions to perform", :type => :string, :default => "deploy"
+end
+
+app_servers = opts[:app_servers] || ENV['app_servers']
+actions =  ENV['actions'] || opts[:actions]
+
+tasks = <<-'EOS'
+    load 'deploy' if respond_to?(:namespace) # cap2 differentiator
+    load Gem.find_files('symfony2.rb').first.to_s
+
+    namespace :deploy do
+      desc <<-DESC
+        Prepares one or more servers for deployment. Before you can use any \
+        of the Capistrano deployment tasks with your project, you will need to \
+        make sure all of your servers have been prepared with `cap deploy:setup'. When \
+        you add a new server to your cluster, you can easily run the setup task \
+        on just that server by specifying the HOSTS environment variable:
+
+          $ cap HOSTS=new.server.com deploy:setup
+
+        It is safe to run this task on servers that have already been set up; it \
+        will not destroy any deployed revisions or data.
+      DESC
+      task :setup, :roles => :app, :except => { :no_release => true } do
+        dirs = [deploy_to, releases_path, shared_path]
+        try_sudo "mkdir -p #{dirs.join(' ')}"
+        try_sudo "chmod g+w #{dirs.join(' ')}" if fetch(:group_writable, true)
+      end
+    end
+
+EOS
+tasks += ENV['tasks'] + "\n"
+tasks += <<-'EOS'
+    # set Net::SSH ssh options through normal variables
+    # at the moment only one SSH key is supported as arrays are not
+    # parsed correctly by Webistrano::Deployer.type_cast (they end up as strings)
+    [:ssh_port, :ssh_keys].each do |ssh_opt|
+      if exists? ssh_opt
+        logger.important("SSH options: setting #{ssh_opt} to: #{fetch(ssh_opt)}")
+        ssh_options[ssh_opt.to_s.gsub(/ssh_/, '').to_sym] = fetch(ssh_opt)
+      end
+    end
+
+EOS
+
+
+#   puts tasks
+
+app_servers = app_servers.split(',')
+roles = []
+app_servers.each do |host|
+  roles.push(
+      {
+          :name => :app,
+          :host => host
+      }
+  )
+end
+
+
+roles_options = {
+}
+
+vars = {}
+
+deployer = Symfony::Deployer.new
+deployer.tasks = tasks
+deployer.roles = roles
+deployer.roles_options = roles_options
+deployer.vars = vars
+deployer.options[:actions] = actions.split(',')
+deployer.execute!
