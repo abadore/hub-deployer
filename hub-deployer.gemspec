@@ -1,7 +1,7 @@
 Gem::Specification.new do |spec|
 
   spec.name = 'hub-deployer'
-  spec.version = '0.0.1.dev'
+  spec.version = '0.0.1'
   spec.platform = Gem::Platform::RUBY
   spec.description = <<-DESC
     hubops
@@ -13,7 +13,7 @@ Gem::Specification.new do |spec|
   spec.bindir = "bin"
   spec.executables = ["hub-deploy"]
 
-  spec.files = Dir.glob("{lib}/**/*")
+  spec.files = Dir.glob("{lib,tasks}/**/*")
   spec.require_path = 'lib'
   spec.has_rdoc = false
 

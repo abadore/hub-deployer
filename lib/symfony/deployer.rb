@@ -36,10 +36,12 @@ module Symfony
       set_pre_vars(config)
       load_recipes(config)
 
-      set_config_vars(config)
       set_roles(config)
-
+      set_config_vars(config)
       config.load(:string => @tasks)
+
+      set_config_vars(config)
+
       config
     end
 

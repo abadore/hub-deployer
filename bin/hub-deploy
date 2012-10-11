@@ -1,14 +1,7 @@
 #!/usr/bin/env ruby
 require 'trollop'
 require 'hub-deployer'
-
-opts = Trollop::options do
-  opt :app_servers, "Servers to deploy to", :type => :string
-  opt :actions, "Actions to perform", :type => :string, :default => "deploy"
-end
-
-app_servers = opts[:app_servers] || ENV['app_servers']
-actions =  ENV['actions'] || opts[:actions]
+require 'colored'
 
 tasks = <<-'EOS'
     load 'deploy' if respond_to?(:namespace) # cap2 differentiator
@@ -31,12 +24,10 @@ tasks = <<-'EOS'
         dirs = [deploy_to, releases_path, shared_path]
         try_sudo "mkdir -p #{dirs.join(' ')}"
         try_sudo "chmod g+w #{dirs.join(' ')}" if fetch(:group_writable, true)
+        try_sudo "chown #{user}:#{user} #{dirs.join(' ')}"
       end
     end
 
-EOS
-tasks += ENV['tasks'] + "\n"
-tasks += <<-'EOS'
     # set Net::SSH ssh options through normal variables
     # at the moment only one SSH key is supported as arrays are not
     # parsed correctly by Webistrano::Deployer.type_cast (they end up as strings)
@@ -49,10 +40,64 @@ tasks += <<-'EOS'
 
 EOS
 
+opts = Trollop::options do
+  opt :actions, "Actions to perform", :type => :string, :default => "deploy"
+  opt :app_servers, "Servers to deploy to", :type => :string
+  opt :application, "Name of application", :type => :string, :default => "hub"
+  opt :deploy_to, "Deploy directory", :type => :string, :default => "/web/hub"
+  opt :symfony_env_prod, "Symfony environment to deploy", :type => :string, :default => "prod"
+  opt :user, "Remote user", :type => :string, :default => "ec2-user"
+  opt :password, "Remote user", :type => :string
+  opt :ssh_keys, "SSH key file", :type => :string
+  opt :keep_releases, "Number of releases to keep", :type => :int, :default => 3
+  opt :php_bin, "PHP binary", :type => :string, :default => "php"
+  opt :deploy_via, "Capistrano deploy method", :type => :string, :default => ":copy"
+  opt :scm, "SCM type", :type => :string, :default => ":git"
+  opt :repository, "SCM repository location", :type => :string
+  opt :use_sudo, "Use sudo", :type => :flag
+  opt :tasks, "Tasks file", :type => :io
+  opt :gem_tasks, "Internal tasks file", :type => :string
+end
 
-#   puts tasks
+vars = {}
 
-app_servers = app_servers.split(',')
+opts.each do |k,v|
+  if !v.nil? and !k.to_s.include? "_given" and k != :help
+    puts "#{k} => #{v}"
+    if k == :tasks
+      while (line = v.gets)
+        tasks += line
+      end
+      v.close()
+
+    elsif k == :gem_tasks
+      path = File.dirname(__FILE__) + "/../tasks/"
+      puts path
+      if File.exist? path + v
+        task_file = File.new(path + v, "r")
+        while (line = task_file.gets)
+          tasks += line
+        end
+        task_file.close()
+      else
+        puts "Tasks file #{v} does not exists. Available tasks files are:".red
+        Dir.glob(path + "*").each do |file|
+          puts "    #{file[/[^\/]*$/]}".red
+        end
+        abort "exiting".red
+      end
+
+    else
+      vars[k] = (v.is_a? String) ? v.dup : v.to_s
+    end
+
+  end
+end
+
+
+   puts tasks
+
+app_servers = opts[:app_servers].split(',')
 roles = []
 app_servers.each do |host|
   roles.push(
@@ -67,12 +112,11 @@ end
 roles_options = {
 }
 
-vars = {}
 
 deployer = Symfony::Deployer.new
 deployer.tasks = tasks
 deployer.roles = roles
 deployer.roles_options = roles_options
 deployer.vars = vars
-deployer.options[:actions] = actions.split(',')
+deployer.options[:actions] = opts[:actions].split(',')
 deployer.execute!
