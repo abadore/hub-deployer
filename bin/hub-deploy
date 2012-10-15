@@ -72,7 +72,6 @@ opts.each do |k,v|
 
     elsif k == :gem_tasks
       path = File.dirname(__FILE__) + "/../tasks/"
-      puts path
       if File.exist? path + v
         task_file = File.new(path + v, "r")
         while (line = task_file.gets)
@@ -94,8 +93,8 @@ opts.each do |k,v|
   end
 end
 
-
-   puts tasks
+puts "   ###>>>>>>>>>>>>>> TASKS <<<<<<<<<<<<<<<<###    \n\n".green
+puts tasks.green
 
 app_servers = opts[:app_servers].split(',')
 roles = []
