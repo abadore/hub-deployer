@@ -54,13 +54,19 @@ def poll_events cf, stack_name, stack_complete_status_list
         i -= 1
         print_event events[i]
         if events[i]["ResourceType"] == "AWS::CloudFormation::Stack" && stack_complete_status_list.index(events[i]["ResourceStatus"])
+          puts "Stack deleted"
           eventPolling = false
         end
       end
 
       sleep(2)
       putc '.'
-    rescue
+    rescue => e
+      if e.response && e.response.status == 400
+        puts "Stack deleted"
+      else
+        raise e
+      end
       eventPolling = false
     end
   end
@@ -71,8 +77,10 @@ def stack_exists cf, stack_name
     response = cf.describe_stacks({"StackName" => stack_name})
     puts response.body['Stacks'][0]['StackStatus']
     true
-  rescue
-    #puts "Could not find stack #{opts[:stack_name]}"
+  rescue => e
+    if e.response.nil? || e.response != 400
+      raise e
+    end
     false
   end
 end
