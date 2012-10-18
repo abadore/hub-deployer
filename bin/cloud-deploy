@@ -1,0 +1,106 @@
+#!/usr/bin/env ruby
+require 'trollop'
+require 'fog'
+
+opts = Trollop::options do
+  opt :aws_access_key_id, "AWS Access Key ID", :type => :string, :required => true
+  opt :aws_secret_access_key, "AWS Secret Key", :type => :string, :required => true
+  opt :aws_region, "AWS Region", :type => :string, :default => "us-west-1"
+  opt :stack_name, "CloudFormation Stack Name", :type => :string, :required => true
+  opt :cf_template, "CloudFormation Template", :type => :io, :required => true
+  opt :parameters, "CF Template Parameters (comma delimited name=value pairs)", :type => :string
+  opt :delete_first, "Delete Prior Stack", :type => :flag
+end
+
+params = {}
+if opts[:parameters]
+  opts[:parameters].split(",").each do |param|
+    pair = param.split("=")
+    if pair.length == 2
+      params[pair[0]] = pair[1]
+    end
+  end
+end
+
+template = ""
+while (line = opts[:cf_template].gets)
+  template += line
+end
+opts[:cf_template].close()
+
+cf = Fog::AWS::CloudFormation.new(
+                                  :region                 => opts[:aws_region],
+                                  :aws_access_key_id      => opts[:aws_access_key_id],
+                                  :aws_secret_access_key  => opts[:aws_secret_access_key]
+                                  )
+
+
+def poll_events cf, stack_name, stack_complete_status_list
+  eventPolling = true
+  nextToken = "1"
+  count = 0
+
+  while eventPolling
+    begin
+      response = cf.describe_stack_events(stack_name, {"NextToken" => nextToken})
+      events = response.body['StackEvents']
+
+      nextToken = response.body['RequestId']
+
+      i = events.length - count
+      count = events.length
+
+      while i > 0
+        i -= 1
+        print_event events[i]
+        if events[i]["ResourceType"] == "AWS::CloudFormation::Stack" && stack_complete_status_list.index(events[i]["ResourceStatus"])
+          eventPolling = false
+        end
+      end
+
+      sleep(2)
+      putc '.'
+    rescue
+      eventPolling = false
+    end
+  end
+end
+
+def stack_exists cf, stack_name
+  begin
+    response = cf.describe_stacks({"StackName" => stack_name})
+    puts response.body['Stacks'][0]['StackStatus']
+    true
+  rescue
+    #puts "Could not find stack #{opts[:stack_name]}"
+    false
+  end
+end
+
+def print_event event
+  puts ""
+  puts "#{event['Timestamp']} - Type: #{event["ResourceType"]},  Status: #{event["ResourceStatus"]},   Name: #{event["LogicalResourceId"]}"
+end
+
+exists = stack_exists cf, opts[:stack_name]
+if opts[:delete_first] && exists
+  puts "Deleting existing stack"
+  cf.delete_stack(opts[:stack_name]);
+  poll_events cf, opts[:stack_name], ["DELETE_COMPLETE"]
+elsif exists
+  abort "Cannot create #{opts[:stack_name]} stack when one already exists. Try providing --delete-first flag or different stack name."
+end
+
+
+puts "Creating stack #{opts[:stack_name]}"
+response = cf.create_stack(opts[:stack_name],
+                            {
+                            "TemplateBody" => template,
+                            "Parameters" => params,
+                            "Capabilities" => "CAPABILITY_IAM"
+                            }
+                          )
+
+stackId = response.body['StackId']
+
+poll_events cf, opts[:stack_name], ["CREATE_COMPLETE", "ROLLBACK_COMPLETE"]

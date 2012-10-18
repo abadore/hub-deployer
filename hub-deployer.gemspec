@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   DESC
 
   spec.bindir = "bin"
-  spec.executables = ["hub-deploy"]
+  spec.executables = ["hub-deploy", "cloud-deploy"]
 
   spec.files = Dir.glob("{lib,tasks}/**/*")
   spec.require_path = 'lib'
