@@ -2,6 +2,7 @@
 require 'trollop'
 require 'hub-deployer'
 require 'colored'
+$stdout.sync = true
 
 tasks = <<-'EOS'
     load 'deploy' if respond_to?(:namespace) # cap2 differentiator
@@ -22,9 +23,9 @@ tasks = <<-'EOS'
       DESC
       task :setup, :roles => :app, :except => { :no_release => true } do
         dirs = [deploy_to, releases_path, shared_path]
-        try_sudo "mkdir -p #{dirs.join(' ')}"
-        try_sudo "chmod g+w #{dirs.join(' ')}" if fetch(:group_writable, true)
-        try_sudo "chown #{user}:#{user} #{dirs.join(' ')}"
+        run "sudo mkdir -p #{dirs.join(' ')}"
+        run "sudo chmod g+w #{dirs.join(' ')}" if fetch(:group_writable, true)
+        run "sudo chown #{user}:#{user} #{dirs.join(' ')}"
       end
     end
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 require 'trollop'
 require 'fog'
+$stdout.sync = true
 
 opts = Trollop::options do
   opt :aws_access_key_id, "AWS Access Key ID", :type => :string, :required => true
@@ -35,11 +36,11 @@ cf = Fog::AWS::CloudFormation.new(
                                   )
 
 
-def poll_events cf, stack_name, stack_complete_status_list
-  eventPolling = true
+def poll_events cf, stack_name, status_list
+  event_polling = true
   count = 0
 
-  while eventPolling
+  while event_polling
     begin
       response = cf.describe_stack_events(stack_name)
       events = response.body['StackEvents']
@@ -50,8 +51,11 @@ def poll_events cf, stack_name, stack_complete_status_list
       while i > 0
         i -= 1
         print_event events[i]
-        if events[i]["ResourceType"] == "AWS::CloudFormation::Stack" && stack_complete_status_list.index(events[i]["ResourceStatus"])
-          eventPolling = false
+        if events[i]["ResourceType"] == "AWS::CloudFormation::Stack" && status_list.index(events[i]["ResourceStatus"])
+          event_polling = false
+          if %w(ROLLBACK_COMPLETE CREATE_FAILED).index(events[i]["ResourceStatus"])
+            raise "Stack creation failed."
+          end
         end
       end
 
@@ -60,7 +64,7 @@ def poll_events cf, stack_name, stack_complete_status_list
     rescue => e
       if e.response && e.response.status == 400
         puts "Stack deleted"
-        eventPolling = false
+        event_polling = false
       else
         raise e
       end
@@ -70,8 +74,7 @@ end
 
 def stack_exists cf, stack_name
   begin
-    response = cf.describe_stacks({"StackName" => stack_name})
-    puts response.body['Stacks'][0]['StackStatus']
+    cf.describe_stacks({"StackName" => stack_name})
     true
   rescue => e
     if e.response.nil? || e.response.status != 400
@@ -90,21 +93,19 @@ exists = stack_exists cf, opts[:stack_name]
 if opts[:delete_first] && exists
   puts "Deleting existing stack"
   cf.delete_stack(opts[:stack_name]);
-  poll_events cf, opts[:stack_name], ["DELETE_COMPLETE"]
+  poll_events cf, opts[:stack_name], %w(DELETE_COMPLETE)
 elsif exists
   abort "Cannot create #{opts[:stack_name]} stack when one already exists. Try providing --delete-first flag or different stack name."
 end
 
 
 puts "Creating stack #{opts[:stack_name]}"
-response = cf.create_stack(opts[:stack_name],
-                            {
-                            "TemplateBody" => template,
-                            "Parameters" => params,
-                            "Capabilities" => "CAPABILITY_IAM"
-                            }
-                          )
+cf.create_stack(opts[:stack_name],
+                {
+                "TemplateBody" => template,
+                "Parameters" => params,
+                "Capabilities" => "CAPABILITY_IAM"
+                }
+              )
 
-stackId = response.body['StackId']
-
-poll_events cf, opts[:stack_name], ["CREATE_COMPLETE", "ROLLBACK_COMPLETE"]
+poll_events cf, opts[:stack_name], %w(CREATE_COMPLETE ROLLBACK_COMPLETE CREATE_FAILED)
