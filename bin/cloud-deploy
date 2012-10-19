@@ -37,15 +37,12 @@ cf = Fog::AWS::CloudFormation.new(
 
 def poll_events cf, stack_name, stack_complete_status_list
   eventPolling = true
-  nextToken = "1"
   count = 0
 
   while eventPolling
     begin
-      response = cf.describe_stack_events(stack_name, {"NextToken" => nextToken})
+      response = cf.describe_stack_events(stack_name)
       events = response.body['StackEvents']
-
-      nextToken = response.body['RequestId']
 
       i = events.length - count
       count = events.length
