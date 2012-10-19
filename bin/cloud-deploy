@@ -74,7 +74,7 @@ def stack_exists cf, stack_name
     puts response.body['Stacks'][0]['StackStatus']
     true
   rescue => e
-    if e.response.nil? || e.response != 400
+    if e.response.nil? || e.response.status != 400
       raise e
     end
     false
