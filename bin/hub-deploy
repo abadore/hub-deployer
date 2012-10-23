@@ -48,13 +48,14 @@ opts = Trollop::options do
   opt :deploy_to, "Deploy directory", :type => :string, :default => "/web/hub"
   opt :symfony_env_prod, "Symfony environment to deploy", :type => :string, :default => "prod"
   opt :user, "Remote user", :type => :string, :default => "ec2-user"
-  opt :password, "Remote user", :type => :string
+  opt :password, "Remote user password", :type => :string
   opt :ssh_keys, "SSH key file", :type => :string
   opt :keep_releases, "Number of releases to keep", :type => :int, :default => 3
   opt :php_bin, "PHP binary", :type => :string, :default => "php"
   opt :deploy_via, "Capistrano deploy method", :type => :string, :default => ":copy"
   opt :scm, "SCM type", :type => :string, :default => ":git"
   opt :repository, "SCM repository location", :type => :string
+  opt :branch, "SCM branch/tag", :type => :string
   opt :use_sudo, "Use sudo", :type => :flag
   opt :tasks, "Tasks file", :type => :io
   opt :gem_tasks, "Internal tasks file", :type => :string

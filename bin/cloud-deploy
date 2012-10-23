@@ -11,6 +11,8 @@ opts = Trollop::options do
   opt :cf_template, "CloudFormation Template", :type => :io, :required => true
   opt :parameters, "CF Template Parameters (comma delimited name=value pairs)", :type => :string
   opt :delete_first, "Delete Prior Stack", :type => :flag
+  opt :update, "Update Stack", :type => :flag
+  opt :disable_rollback, "Disable Rollback", :type => :flag
 end
 
 params = {}
@@ -62,11 +64,11 @@ def poll_events cf, stack_name, status_list
       sleep(2)
       putc '.'
     rescue => e
-      if e.response && e.response.status == 400
+      if e.response.nil? || e.response.status != 400
+        raise e
+      else
         puts "Stack deleted"
         event_polling = false
-      else
-        raise e
       end
     end
   end
@@ -89,23 +91,44 @@ def print_event event
   puts "#{event['Timestamp']} - Type: #{event["ResourceType"]},  Status: #{event["ResourceStatus"]},   Name: #{event["LogicalResourceId"]}"
 end
 
-exists = stack_exists cf, opts[:stack_name]
-if opts[:delete_first] && exists
-  puts "Deleting existing stack"
-  cf.delete_stack(opts[:stack_name]);
-  poll_events cf, opts[:stack_name], %w(DELETE_COMPLETE)
-elsif exists
-  abort "Cannot create #{opts[:stack_name]} stack when one already exists. Try providing --delete-first flag or different stack name."
+def create_stack cf, stack_name, template, params, disable_rollback
+
+  puts "Creating stack #{stack_name}"
+  cf.create_stack(stack_name,
+                  {
+                      "TemplateBody" => template,
+                      "Parameters" => params,
+                      "Capabilities" => "CAPABILITY_IAM",
+                      "DisableRollback" => disable_rollback
+                  }
+  )
+
+  poll_events cf, stack_name, %w(CREATE_COMPLETE ROLLBACK_COMPLETE CREATE_FAILED)
+
 end
 
+exists = stack_exists cf, opts[:stack_name]
 
-puts "Creating stack #{opts[:stack_name]}"
-cf.create_stack(opts[:stack_name],
-                {
-                "TemplateBody" => template,
-                "Parameters" => params,
-                "Capabilities" => "CAPABILITY_IAM"
-                }
-              )
+if opts[:delete_first] && exists
+  puts "Deleting existing stack"
+  cf.delete_stack(opts[:stack_name])
+  poll_events cf, opts[:stack_name], %w(DELETE_COMPLETE DELETE_FAILED)
+  create_stack cf, opts[:stack_name], template, params, opts[:disable_rollback]
 
-poll_events cf, opts[:stack_name], %w(CREATE_COMPLETE ROLLBACK_COMPLETE CREATE_FAILED)
+elsif exists && opts[:update]
+  puts "Updating stack #{opts[:stack_name]}"
+  cf.update_stack(opts[:stack_name],
+                  {
+                      "TemplateBody" => template,
+                      "Parameters" => params,
+                      "Capabilities" => "CAPABILITY_IAM"
+                  }
+  )
+  poll_events cf, opts[:stack_name], %w(UPDATE_COMPLETE UPDATE_FAILED)
+
+elsif exists
+  abort "Cannot create #{opts[:stack_name]} stack when one already exists. Try providing --delete-first flag or different stack name."
+else
+  create_stack cf, opts[:stack_name], template, params, opts[:disable_rollback]
+end
+
