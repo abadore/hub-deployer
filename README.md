@@ -51,7 +51,7 @@ Example of using hub-deploy with jenkins. It deploys from the jenkins job's work
 Another example that checks out the project from git using the :remote_cache deploy method.
 
     hub-deploy --actions deploy --app-servers 127.0.0.1 --deploy-to /web/hub --ssh-keys /root/.ssh/id_rsa \
-         --user ec2-user --repository git@github.com:cbsi/hub --branch staging
+         --user ec2-user --repository git@github.com:cbsi/hub --branch staging \
          --deploy-via :remote_cache  --gem-tasks symfony_dev --symfony-env-prod dev --application hub
 
 cloud-deploy Usage
