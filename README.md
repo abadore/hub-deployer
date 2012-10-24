@@ -42,6 +42,7 @@ Options
  * --use-sudo : Use sudo
  * --tasks : Tasks file
  * --gem-tasks : Internal tasks file
+ * --use-scp : Use scp instead of sftp
 
 Example of using hub-deploy with jenkins. It deploys from the jenkins job's workspace using the :copy deploy method.
 
