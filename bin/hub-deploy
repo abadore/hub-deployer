@@ -2,6 +2,7 @@
 require 'trollop'
 require 'hub-deployer'
 require 'colored'
+
 $stdout.sync = true
 
 tasks = <<-'EOS'
@@ -59,6 +60,7 @@ opts = Trollop::options do
   opt :use_sudo, "Use sudo", :type => :flag
   opt :tasks, "Tasks file", :type => :io
   opt :gem_tasks, "Internal tasks file", :type => :string
+  opt :use_scp, "Use scp instead of sftp", :type => :flag
 end
 
 vars = {}
@@ -113,6 +115,9 @@ end
 roles_options = {
 }
 
+if opts[:use_scp]
+  Capistrano::Configuration.send(:include, UseScpForDeployment)
+end
 
 deployer = Symfony::Deployer.new
 deployer.tasks = tasks
