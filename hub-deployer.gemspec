@@ -1,7 +1,7 @@
 Gem::Specification.new do |spec|
 
   spec.name = 'hub-deployer'
-  spec.version = '0.0.2'
+  spec.version = '0.0.3'
   spec.platform = Gem::Platform::RUBY
   spec.description = <<-DESC
     hubops

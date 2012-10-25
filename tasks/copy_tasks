@@ -1,0 +1,6 @@
+logger.level = Logger::MAX_LEVEL
+
+# set these to empty so capistrano doesn't try to create the defaults
+set :shared_children, []
+set :asset_children, []
+set :public_children, []

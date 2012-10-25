@@ -1,3 +1,4 @@
+load Gem.find_files('symfony2.rb').first.to_s
 
 # Be more verbose by uncommenting the following line
 logger.level = Logger::MAX_LEVEL

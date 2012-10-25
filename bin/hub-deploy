@@ -5,9 +5,8 @@ require 'colored'
 
 $stdout.sync = true
 
-tasks = <<-'EOS'
-    load 'deploy' if respond_to?(:namespace) # cap2 differentiator
-    load Gem.find_files('symfony2.rb').first.to_s
+
+ssh_tasks = <<-'EOS'
 
     namespace :deploy do
       desc <<-DESC
@@ -42,6 +41,15 @@ tasks = <<-'EOS'
 
 EOS
 
+tasks = <<-'EOS'
+    load 'deploy' if respond_to?(:namespace) # cap2 differentiator
+    #load Gem.find_files('symfony2.rb').first.to_s
+
+EOS
+
+tasks += ssh_tasks
+remote_tasks = ssh_tasks
+
 opts = Trollop::options do
   opt :actions, "Actions to perform", :type => :string, :default => "deploy"
   opt :app_servers, "Servers to deploy to", :type => :string
@@ -50,7 +58,7 @@ opts = Trollop::options do
   opt :symfony_env_prod, "Symfony environment to deploy", :type => :string, :default => "prod"
   opt :user, "Remote user", :type => :string, :default => "ec2-user"
   opt :password, "Remote user password", :type => :string
-  opt :ssh_keys, "SSH key file", :type => :string
+  opt :ssh_keys, "Remote user SSH key file", :type => :string
   opt :keep_releases, "Number of releases to keep", :type => :int, :default => 3
   opt :php_bin, "PHP binary", :type => :string, :default => "php"
   opt :deploy_via, "Capistrano deploy method", :type => :string, :default => ":copy"
@@ -59,8 +67,15 @@ opts = Trollop::options do
   opt :branch, "SCM branch/tag", :type => :string
   opt :use_sudo, "Use sudo", :type => :flag
   opt :tasks, "Tasks file", :type => :io
+  opt :remote_tasks, "Tasks file to run on remotes, use with build_local", :type => :io
   opt :gem_tasks, "Internal tasks file", :type => :string
   opt :use_scp, "Use scp instead of sftp", :type => :flag
+  opt :build_local, "Build local then copy to remotes", :type => :flag
+  opt :local_user, "Remote user", :type => :string, :default => "ec2-user"
+  opt :local_actions, "Local actions to perform", :type => :string, :default => "deploy"
+  opt :local_password, "Remote user password", :type => :string
+  opt :local_ssh_keys, "Remote user SSH key file", :type => :string
+  opt :local_deploy_to, "Local deploy directory", :type => :string, :default => "/web/hub"
 end
 
 vars = {}
@@ -71,6 +86,12 @@ opts.each do |k,v|
     if k == :tasks
       while (line = v.gets)
         tasks += line
+      end
+      v.close()
+
+    elsif k == :remote_tasks
+      while (line = v.gets)
+        remote_tasks += line
       end
       v.close()
 
@@ -97,20 +118,7 @@ opts.each do |k,v|
   end
 end
 
-puts "   ###>>>>>>>>>>>>>> TASKS <<<<<<<<<<<<<<<<###    \n\n".green
-puts tasks.green
-
 app_servers = opts[:app_servers].split(',')
-roles = []
-app_servers.each do |host|
-  roles.push(
-      {
-          :name => :app,
-          :host => host
-      }
-  )
-end
-
 
 roles_options = {
 }
@@ -119,10 +127,56 @@ if opts[:use_scp]
   Capistrano::Configuration.send(:include, UseScpForDeployment)
 end
 
-deployer = Symfony::Deployer.new
-deployer.tasks = tasks
-deployer.roles = roles
-deployer.roles_options = roles_options
-deployer.vars = vars
-deployer.options[:actions] = opts[:actions].split(',')
-deployer.execute!
+def generate_roles servers
+  roles = []
+  servers.each do |host|
+    roles.push(
+        {
+            :name => :app,
+            :host => host
+        }
+    )
+  end
+  roles
+end
+
+def execute! actions, tasks, roles, roles_options, vars
+
+  puts "   ###>>>>>>>>>>>>>> TASKS <<<<<<<<<<<<<<<<###    \n\n".green
+  puts tasks.green
+
+  deployer = Symfony::Deployer.new
+  deployer.tasks = tasks
+  deployer.roles = roles
+  deployer.roles_options = roles_options
+  deployer.vars = vars
+  deployer.options[:actions] = actions
+  deployer.execute!
+  deployer.config.latest_release
+end
+
+def replace hash, key, value
+  hash.delete key
+  if value
+    hash[key] = (value.is_a? String) ? value.dup : value.to_s
+  end
+end
+
+if opts[:build_local]
+  local_vars = vars.dup
+
+  replace local_vars, :user, opts[:local_user]
+  replace local_vars, :password, opts[:local_password]
+  replace local_vars, :ssh_keys, opts[:local_ssh_keys]
+  replace local_vars, :deploy_to, opts[:local_deploy_to]
+
+
+  release_dir = execute! opts[:local_actions].split(','), tasks, generate_roles(%w(localhost)), roles_options, local_vars
+
+  replace vars, :repository, release_dir
+  replace vars, :scm, :none
+
+  execute! opts[:actions].split(','), remote_tasks, generate_roles(app_servers), roles_options, vars
+else
+  execute! opts[:actions].split(','), tasks, generate_roles(app_servers), roles_options, vars
+end
