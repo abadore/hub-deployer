@@ -85,18 +85,10 @@ set(:symfony_version)       { guess_symfony_version }
 set :interactive_mode,      false
 
 before "deploy:finalize_update" do
-  if !remote_file_exists?("#{latest_release}/app/config/parameters.ini")
-    logger.important("--> Copy #{latest_release}/app/config/parameters.sample.ini to #{latest_release}/app/config/parameters.ini")
-    run "cp #{latest_release}/app/config/parameters.sample.ini #{latest_release}/app/config/parameters.ini"
-    run "cp #{latest_release}/web/app_dev.php #{latest_release}/web/index.php"
-  end
+    run "sh -c 'cd #{latest_release} && compass compile app/config --environment production --force'"
 end
 
 after "deploy:finalize_update" do
-  symfony.doctrine.database.drop
-  symfony.doctrine.database.create
-  symfony.doctrine.init.acl
-  symfony.doctrine.schema.update
-  symfony.doctrine.fixtures.load
   deploy.set_permissions
+  run "cp #{latest_release}/web/app.php #{latest_release}/web/index.php"
 end
