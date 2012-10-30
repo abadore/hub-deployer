@@ -6,7 +6,25 @@ require 'colored'
 $stdout.sync = true
 
 
-ssh_tasks = <<-'EOS'
+base_tasks = <<-'EOS'
+
+    # Symfony application path
+    set :app_path,              "app"
+
+    # Symfony web path
+    set :web_path,              "web"
+
+    # Symfony log path
+    set :log_path,              app_path + "/logs"
+
+    # Symfony cache path
+    set :cache_path,            app_path + "/cache"
+
+    # Dirs that need to remain the same between deploys (shared dirs)
+    set :shared_children,       [log_path, web_path + "/uploads"]
+
+    # Files that need to remain the same between deploys
+    set :shared_files,          false
 
     namespace :deploy do
       desc <<-DESC
@@ -23,10 +41,66 @@ ssh_tasks = <<-'EOS'
       DESC
       task :setup, :roles => :app, :except => { :no_release => true } do
         dirs = [deploy_to, releases_path, shared_path]
-        run "sudo mkdir -p #{dirs.join(' ')}"
-        run "sudo chmod g+w #{dirs.join(' ')}" if fetch(:group_writable, true)
-        run "sudo chown #{user}:#{user} #{dirs.join(' ')}"
+        run "#{try_sudo} mkdir -p #{dirs.join(' ')}"
+        run "#{try_sudo} chmod g+w #{dirs.join(' ')}" if fetch(:group_writable, true)
+
+        if :use_sudo
+          run "sudo chown #{user}:#{user} #{dirs.join(' ')}"
+        end
       end
+
+      desc "Symlinks static directories and static files that need to remain between deployments"
+      task :share_childs, :roles => :app, :except => { :no_release => true } do
+        if shared_children
+          logger.important "--> Creating symlinks for shared directories"
+
+          shared_children.each do |link|
+            run "mkdir -p #{shared_path}/#{link}"
+            run "sh -c 'if [ -d #{release_path}/#{link} ] ; then rm -rf #{release_path}/#{link}; fi'"
+            run "ln -nfs #{shared_path}/#{link} #{release_path}/#{link}"
+          end
+
+        end
+
+        if shared_files
+          logger.important "--> Creating symlinks for shared files"
+
+          shared_files.each do |link|
+            link_dir = File.dirname("#{shared_path}/#{link}")
+            run "mkdir -p #{link_dir}"
+            run "touch #{shared_path}/#{link}"
+            run "ln -nfs #{shared_path}/#{link} #{release_path}/#{link}"
+          end
+
+        end
+      end
+
+      desc "Updates latest release source path"
+      task :finalize_update, :roles => :app, :except => { :no_release => true } do
+        run "chmod -R g+w #{latest_release}" if fetch(:group_writable, true)
+
+        logger.important "--> Creating cache directory"
+
+        run "sh -c 'if [ -d #{latest_release}/#{cache_path} ] ; then rm -rf #{latest_release}/#{cache_path}; fi'"
+        run "sh -c 'mkdir -p #{latest_release}/#{cache_path} && chmod -R 0777 #{latest_release}/#{cache_path}'"
+        run "chmod -R g+w #{latest_release}/#{cache_path}"
+
+        share_childs
+
+        if fetch(:normalize_asset_timestamps, true)
+          stamp = Time.now.utc.strftime("%Y%m%d%H%M.%S")
+          asset_paths = asset_children.map { |p| "#{latest_release}/#{p}" }.join(" ")
+
+          if asset_paths.chomp.empty?
+            puts "    No asset paths found, skipped".yellow
+          else
+            logger.important "--> Normalizing asset timestamps"
+
+            run "find #{asset_paths} -exec touch -t #{stamp} {} ';' &> /dev/null || true", :env => { "TZ" => "UTC" }
+          end
+        end
+      end
+
     end
 
     # set Net::SSH ssh options through normal variables
@@ -47,8 +121,8 @@ tasks = <<-'EOS'
 
 EOS
 
-tasks += ssh_tasks
-remote_tasks = ssh_tasks
+tasks += base_tasks
+remote_tasks = base_tasks
 
 opts = Trollop::options do
   opt :actions, "Actions to perform", :type => :string, :default => "deploy"
@@ -175,6 +249,7 @@ if opts[:build_local]
 
   replace vars, :repository, release_dir
   replace vars, :scm, :none
+  replace vars, :deploy_via, :copy
 
   execute! opts[:actions].split(','), remote_tasks, generate_roles(app_servers), roles_options, vars
 else
