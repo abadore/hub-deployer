@@ -1,6 +1,16 @@
 logger.level = Logger::MAX_LEVEL
 
+# Symfony application path
+set :app_path,              "app"
+
+# Symfony web path
+set :web_path,              "web"
+
+# Symfony log path
+set :log_path,              app_path + "/logs"
+
+set :shared_children, [log_path, web_path + "/uploads"]
+
 # set these to empty so capistrano doesn't try to create the defaults
-set :shared_children, []
 set :asset_children, []
 set :public_children, []

@@ -6,11 +6,6 @@ logger.level = Logger::MAX_LEVEL
 # allocate a pty by default as some systems have problems without
 default_run_options[:pty] = true
 
-set :default_environment, {
-    'PATH' => '/opt/tools/bin:/opt/cbsi-php5.4/bin:/opt/cbsi-ruby1.8.7/bin:/opt/node/0.8.9/bin:$PATH',
-    'PHP_INI_SCAN_DIR' => '~/'
-}
-
 set :use_sudo, 		    true
 
 # Symfony application path
@@ -90,10 +85,13 @@ set(:symfony_version)       { guess_symfony_version }
 set :interactive_mode,      false
 
 before "deploy:finalize_update" do
-    run "sh -c 'cd #{latest_release} && compass compile app/config --environment production --force'"
+  if !remote_file_exists?("#{latest_release}/app/config/parameters.ini")
+    logger.important("--> Copy #{latest_release}/app/config/parameters.sample.ini to #{latest_release}/app/config/parameters.ini")
+    run "cp #{latest_release}/app/config/parameters.sample.ini #{latest_release}/app/config/parameters.ini"
+    run "cp #{latest_release}/web/app_dev.php #{latest_release}/web/index.php"
+  end
 end
 
 after "deploy:finalize_update" do
-  #deploy.set_permissions
-  run "cp #{latest_release}/web/app.php #{latest_release}/web/index.php"
+  deploy.set_permissions
 end
