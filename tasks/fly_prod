@@ -6,10 +6,10 @@ logger.level = Logger::MAX_LEVEL
 # allocate a pty by default as some systems have problems without
 default_run_options[:pty] = true
 
-set :default_environment, {
-    'PATH' => '/opt/tools/bin:/opt/cbsi-php5.4/bin:/opt/cbsi-ruby1.8.7/bin:/opt/node/0.8.9/bin:$PATH',
-    'PHP_INI_SCAN_DIR' => '~/'
-}
+#set :default_environment, {
+#    'PATH' => '',
+#    'PHP_INI_SCAN_DIR' => '~/'
+#}
 
 set :use_sudo, 		    true
 

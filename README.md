@@ -43,6 +43,13 @@ Options
  * --tasks : Tasks file
  * --gem-tasks : Internal tasks file
  * --use-scp : Use scp instead of sftp
+ * --build-local : Build local then copy to remotes
+ * --remote-tasks : Tasks file to run on remotes, use with build_local
+ * --local-user : Remote user (default: ec2-user)
+ * --local-actions : Local actions to perform (default: deploy)
+ * --local-password : Remote user password
+ * --local-ssh-keys : Remote user SSH key file
+ * --local-deploy-to : Local deploy directory (default: /web/hub)
 
 Example of using hub-deploy with jenkins. It deploys from the jenkins job's workspace using the :copy deploy method.
 
@@ -54,6 +61,14 @@ Another example that checks out the project from git using the :remote_cache dep
     hub-deploy --actions deploy --app-servers 127.0.0.1 --deploy-to /web/hub --ssh-keys /root/.ssh/id_rsa \
          --user ec2-user --repository git@github.com:cbsi/hub --branch staging \
          --deploy-via :remote_cache  --gem-tasks symfony_dev --symfony-env-prod dev --application hub
+
+Example of build locally then deploy to remotes. The --build-local flag will run capistrano twice, once on the local build server, once to copy the successful local build to the app servers.
+--tasks/--gem-tasks are run locally and --remote-tasks are run on the app servers.
+
+    hub-deploy --actions deploy --app-servers ${app_servers} --deploy-to /www/fly --ssh-keys ${ssh_keys} \
+     --user ec2-user --repository git@github.com:cbsi/fly-techrepublic --branch master --deploy-via :remote_cache \
+     --tasks ${fly_tasks} --symfony-env-prod dev --application fly --local-deploy-to ${WORKSPACE}/fly --remote-tasks ${copy_tasks} \
+     --build-local --local-user ec2-user --local-ssh-keys ${ssh_keys} --use-scp
 
 cloud-deploy Usage
 -------
