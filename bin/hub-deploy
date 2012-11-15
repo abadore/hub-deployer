@@ -2,6 +2,7 @@
 require 'trollop'
 require 'hub-deployer'
 require 'colored'
+require 'fog'
 
 $stdout.sync = true
 
@@ -25,6 +26,8 @@ base_tasks = <<-'EOS'
 
     # Files that need to remain the same between deploys
     set :shared_files,          false
+
+    set :asset_children,        []
 
     namespace :deploy do
       desc <<-DESC
@@ -150,6 +153,10 @@ opts = Trollop::options do
   opt :local_password, "Remote user password", :type => :string
   opt :local_ssh_keys, "Remote user SSH key file", :type => :string
   opt :local_deploy_to, "Local deploy directory", :type => :string, :default => "/web/hub"
+  opt :ec2_tag, "Deploy to EC2 instances with this tag (tag_name=tag_value)", :type => :string
+  opt :ec2_region, "EC2 Region where instances are located", :type => :string, :default => "us-east-1"
+  opt :aws_access_key_id, "AWS Access Key ID", :type => :string
+  opt :aws_secret_access_key, "AWS Secret Key", :type => :string
 end
 
 vars = {}
@@ -192,9 +199,34 @@ opts.each do |k,v|
   end
 end
 
-app_servers = opts[:app_servers].split(',')
+app_servers = []
+if opts[:ec2_tag] && opts[:aws_access_key_id] && opts[:aws_secret_access_key]
+  aws = Fog::Compute::AWS.new(
+     :region => opts[:ec2_region],
+     :aws_access_key_id => opts[:aws_access_key_id],
+     :aws_secret_access_key => opts[:aws_secret_access_key]
+  )
 
-roles_options = {
+  tag = opts[:ec2_tag].split "="
+  if tag.size == 2
+    servers = aws.servers.all("tag:#{tag[0]}" => tag[1])
+    puts servers
+    servers.each do |server|
+      puts "found instance #{server.id}"
+      app_servers.push server.private_ip_address
+    end
+  end
+
+else
+  app_servers = opts[:app_servers].split(',')
+
+end
+
+if :app_servers.size == 0
+  abort "Please provide a list of app servers to deploy to. Use the --app-servers parameter.".red
+end
+
+  roles_options = {
 }
 
 if opts[:use_scp]

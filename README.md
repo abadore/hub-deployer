@@ -50,6 +50,10 @@ Options
  * --local-password : Remote user password
  * --local-ssh-keys : Remote user SSH key file
  * --local-deploy-to : Local deploy directory (default: /web/hub)
+ * --ec2-tag : Deploy to EC2 instances with this tag (tag_name=tag_value)
+ * --ec2-region : EC2 Region where instances are located (default: us-east-1)
+ * --aws-access-key-id : AWS Access Key ID
+ * --aws-secret_access_key : AWS Secret Key
 
 Example of using hub-deploy with jenkins. It deploys from the jenkins job's workspace using the :copy deploy method.
 
@@ -69,6 +73,15 @@ Example of build locally then deploy to remotes. The --build-local flag will run
      --user ec2-user --repository git@github.com:cbsi/fly-techrepublic --branch master --deploy-via :remote_cache \
      --tasks ${fly_tasks} --symfony-env-prod dev --application fly --local-deploy-to ${WORKSPACE}/fly --remote-tasks ${copy_tasks} \
      --build-local --local-user ec2-user --local-ssh-keys ${ssh_keys} --use-scp
+
+Example of deploying to EC2 Instances in region us-west-1 with a tag named deploy_id with the value QA
+
+    hub-deploy --actions deploy --deploy-to /web/hub --ssh-keys /root/.ssh/id_rsa \
+         --user ec2-user --repository git@github.com:cbsi/hub --branch staging \
+         --deploy-via :remote_cache  --gem-tasks symfony_dev --symfony-env-prod dev --application hub \
+         --ec2-tag deploy_id=QA --ec2-region us-west-1 --aws-access-key-id ${access_id} --aws-secret-access-key ${secret}
+
+
 
 cloud-deploy Usage
 -------
